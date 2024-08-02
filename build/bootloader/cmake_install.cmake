@@ -39,7 +39,7 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("C:/ESP_IDF/MY_CODE/softAP/build/bootloader/esp-idf/cmake_install.cmake")
+  include("C:/ESP_IDF/MY_CODE/station/build/bootloader/esp-idf/cmake_install.cmake")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -50,5 +50,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "C:/ESP_IDF/MY_CODE/softAP/build/bootloader/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "C:/ESP_IDF/MY_CODE/station/build/bootloader/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

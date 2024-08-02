@@ -1,8 +1,8 @@
-# Install script for directory: C:/ESP_IDF/MY_CODE/softAP/main
+# Install script for directory: C:/ESP_IDF/MY_CODE/station/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/wifi_softAP")
+  set(CMAKE_INSTALL_PREFIX "C:/Program Files (x86)/wifi_station")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

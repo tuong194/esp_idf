@@ -1,4 +1,4 @@
-/* * Data converted from C:/ESP_IDF/MY_CODE/softAP/build/esp-idf/mbedtls/x509_crt_bundle
+/* * Data converted from C:/ESP_IDF/MY_CODE/station/build/esp-idf/mbedtls/x509_crt_bundle
  */
 .data
 #if !defined (__APPLE__) && !defined (__linux__)
