@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "wifi_softAP",
-    "project_version":    "1",
+    "project_version":    "c4f43aa-dirty",
     "project_path":       "C:/ESP_IDF/MY_CODE/softAP",
     "idf_path":           "C:/ESP_IDF/v5.3/esp-idf",
     "build_dir":          "C:/ESP_IDF/MY_CODE/softAP/build",
