@@ -1,56 +1,82 @@
-| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-S2 | ESP32-S3 |
-| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- |
+| Supported Targets | ESP32 | ESP32-C2 | ESP32-C3 | ESP32-C6 | ESP32-H2 | ESP32-P4 | ESP32-S2 | ESP32-S3 |
+| ----------------- | ----- | -------- | -------- | -------- | -------- | -------- | -------- | -------- |
 
-# Wi-Fi SoftAP Example
+# _LEDC Basic Example_
 
 (See the README.md file in the upper level 'examples' directory for more information about examples.)
 
-This example shows how to use the Wi-Fi SoftAP functionality of the Wi-Fi driver of ESP for serving as an Access Point.
+This example shows how to use the LEDC to generate a PWM signal using the `LOW SPEED` mode.
+To use `HIGH SPEED` mode check if the selected SoC supports this mode.
 
 ## How to use example
 
-SoftAP supports Protected Management Frames(PMF). Necessary configurations can be set using pmf flags. Please refer [Wifi-Security](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/wifi-security.html) for more info.
+### Hardware Required
+
+* A development board with any Espressif SoC (e.g., ESP32-DevKitC, ESP-WROVER-KIT, etc.)
+* A USB cable for power supply and programming
+
+Connect the GPIO to an oscilloscope to see the generated signal:
+
+|ledc channel| GPIO  |
+|:----------:|:-----:|
+| Channel 0  | GPIO5 |
 
 ### Configure the project
 
-Open the project configuration menu (`idf.py menuconfig`).
+The example uses fixed PWM frequency of 4 kHz, duty cycle in 50%, and output GPIO pin. To change them, adjust `LEDC_FREQUENCY`, `LEDC_DUTY`, `LEDC_OUTPUT_IO` macros at the top of ledc_basic_example_main.c.
 
-In the `Example Configuration` menu:
+Depending on the selected `LEDC_FREQUENCY`, you will need to change the `LEDC_DUTY_RES`.
 
-* Set the Wi-Fi configuration.
-    * Set `WiFi SSID`.
-    * Set `WiFi Password`.
+To dynamically set the duty and frequency, you can use the following functions:
 
-Optional: If you need, change the other options according to your requirements.
+To set the frequency to 2.5 kHZ i.e:
+
+```c
+ledc_set_freq(LEDC_MODE, LEDC_TIMER, 2500);
+```
+
+Now set the duty to 100% i.e:
+
+```c
+ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, 8192);
+ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+```
+
+To change the duty cycle you need to calculate the duty range according to the duty resolution.
+
+If duty resolution is 13 bits:
+
+Duty range: `0 to (2 ** 13) = 8191` where 0 is 0% and 8192 is 100%.
 
 ### Build and Flash
 
-Build the project and flash it to the board, then run the monitor tool to view the serial output:
+* [ESP-IDF Getting Started Guide](https://idf.espressif.com/)
 
-Run `idf.py -p PORT flash monitor` to build, flash and monitor the project.
+Build the project and flash it to the board, then run monitor tool to view serial output:
+
+```bash
+idf.py -p PORT flash monitor
+```
 
 (To exit the serial monitor, type ``Ctrl-]``.)
 
-See the Getting Started Guide for all the steps to configure and use the ESP-IDF to build projects.
-
-* [ESP-IDF Getting Started Guide on ESP32](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html)
-* [ESP-IDF Getting Started Guide on ESP32-S2](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/get-started/index.html)
-* [ESP-IDF Getting Started Guide on ESP32-C3](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html)
+See the Getting Started Guide for full steps to configure and use ESP-IDF to build projects.
 
 ## Example Output
 
-There is the console output for this example:
+Running this example, you will see the PWM signal with a duty cycle of 50%.
 
-```
-I (917) phy: phy_version: 3960, 5211945, Jul 18 2018, 10:40:07, 0, 0
-I (917) wifi: mode : softAP (30:ae:a4:80:45:69)
-I (917) wifi softAP: wifi_init_softap finished.SSID:myssid password:mypassword
-I (26457) wifi: n:1 0, o:1 0, ap:1 1, sta:255 255, prof:1
-I (26457) wifi: station: 70:ef:00:43:96:67 join, AID=1, bg, 20
-I (26467) wifi softAP: station:70:ef:00:43:96:67 join, AID=1
-I (27657) esp_netif_lwip: DHCP server assigned IP to a station, IP is: 192.168.4.2
-```
+![PWM](image/ledc_pwm_signal.png)
 
 ## Troubleshooting
+
+* Duty Resolution
+
+    * If you get the following error log `ledc: requested frequency and duty resolution can not be achieved, try reducing freq_hz or duty_resolution.` you need to change the `LEDC_DUTY_RES` to a lower resolution and change the range of the duty.
+
+* Programming fail
+
+    * Hardware connection is not correct: run `idf.py -p PORT monitor`, and reboot your board to see if there are any output logs.
+    * The baud rate for downloading is too high: lower your baud rate in the `menuconfig` menu, and try again.
 
 For any technical queries, please open an [issue](https://github.com/espressif/esp-idf/issues) on GitHub. We will get back to you soon.
