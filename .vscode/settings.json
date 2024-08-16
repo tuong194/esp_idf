@@ -4,6 +4,8 @@
   "idf.flashType": "UART",
   "idf.adapterTargetName": "esp32",
   "files.associations": {
-    "i2c_master.h": "c"
+    "i2c_master.h": "c",
+    "gpio.h": "c",
+    "timer.h": "c"
   }
 }
