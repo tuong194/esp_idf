@@ -44,44 +44,59 @@ int IR_duration[20];
 
 int duration_0 = 0;
 int duration_pwm = 0;
+static volatile int duration = 0;
+
 static int level_gpio;
 static bool flag_check_itr = 1;
 static volatile int indx_ir = 0;
 
+static int count = 0;
+
 static QueueHandle_t gpio_evt_queue = NULL;
-static void IRAM_ATTR gpio_isr_handler(void *arg)
+static void IRAM_ATTR gpio_isr_handler(void *arg) // send data from ISR to QUEUE
 {
+    level_gpio = !level_gpio;
+    flag_check_itr = 1;
+    IR_data[indx_ir] = !level_gpio;
+    IR_duration[indx_ir] = duration;
+    duration = 0;
+    indx_ir++;
+
     uint32_t gpio_num = (uint32_t)arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
 
     /*code*/
 
-    level_gpio = !level_gpio;
-    flag_check_itr = 1;
-    
-    indx_ir++;
-    
+    // count++
 }
 
 static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 {
     if (flag_check_itr)
     {
-        if (level_gpio == 0)
-        { // co pwm
-            duration_pwm++;
-        }
-        else
+        duration++;
+        if (duration > 230)
         {
-            duration_0++;
-        }
-
-        if (duration_pwm > 500 || duration_0 > 500)
-        {
-            duration_pwm = duration_0 = 0;
+            duration = 0;
             flag_check_itr = 0;
             indx_ir = 0;
         }
+
+        // if (level_gpio == 0)
+        // { // co pwm
+        //     duration_pwm++;
+        // }
+        // else
+        // {
+        //     duration_0++;
+        // }
+
+        // if (duration_pwm > 500 || duration_0 > 500)
+        // {
+        //     duration_pwm = duration_0 = 0;
+        //     flag_check_itr = 0;
+        //     indx_ir = 0;
+        // }
     }
 
     return true;
@@ -211,17 +226,23 @@ void task_send_ir(void *para)
 
 void task_test_ir(void *para)
 {
-   
+
     while (1)
     {
-        printf("data indx_ir: %d \n", indx_ir);
+        for (int i = 0; i < 20; i++)
+        {
+            printf("data receive IR_data[%d]: %01X, duration time: %d \n", i, IR_data[i], IR_duration[i]);
+            vTaskDelay(10);
+        }
+        
+        //printf("data indx_ir: %d \n", indx_ir);
         vTaskDelay(1000);
     }
 }
 
 void app_main(void)
 {
-    //config_timer_us(50);
+    config_timer_us(50);
 
     example_ledc_init();
 
@@ -232,7 +253,7 @@ void app_main(void)
     level_gpio = gpio_get_level(IR_PIN);
 
     xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
-    xTaskCreate(rx_ir, "rec_task", 4096, NULL, 10, NULL);
+    xTaskCreate(task_test_ir, "rec_task", 4096, NULL, 10, NULL);
 }
 
 /*
@@ -249,6 +270,8 @@ void rx_ir(void *arg)
         {
 
             // IR_data[indx_ir] = !level_gpio;
+            // IR_duration[indx_ir] = duration;
+            //duration = 0;
             // if (!level_gpio)
             // {
             //     IR_duration[indx_ir] = duration_0;
@@ -261,14 +284,14 @@ void rx_ir(void *arg)
             // }
             // duration_pwm = duration_0 = 0;
 
-            
-
             // printf("data receive IR_data[%d]: %01X, duration time: %d \n", indx_ir, IR_data[indx_ir], IR_duration[indx_ir]);
             // indx_ir++;
 
+            // duration = 0;
 
-            //printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
-            printf("data indx_ir: %d, level: %d \n", indx_ir, level_gpio);
+            // printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
+            // count++;
+            // printf("data indx_ir: %d, count: %d, level: %d \n", indx_ir, count, level_gpio);
         }
     }
 }
