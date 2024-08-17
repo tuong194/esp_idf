@@ -35,98 +35,89 @@ static const char *TAG = "IR";
 #define ESP_INTR_FLAG_DEFAULT 0
 
 #define IR_PIN 18
-#define TIMER_INTERVAL_MS 1000 // 1s
-#define TIMER_SCALE TIMER_SRC_CLK_DEFAULT/160
+#define GPIO_INPUT_PIN_SEL ((1ULL << IR_PIN))
 
 void rx_ir(void *arg);
 
-uint8_t IR_data[100];
-int IR_duration[100];
+uint8_t IR_data[20];
+int IR_duration[20];
 
-static int last_level;
-static int new_level =5;
-static bool check_get_tick;
-int indx_ir = 0;
-
-static  int count = 0;
-
-static void timer_callback(TimerHandle_t xTimer)
-{
-
-    if (new_level != last_level)
-    {
-        count++;
-    }
-
-    if (count >= 10)
-    {
-        ESP_LOGI(TAG, "Time Out");
-        last_level = new_level;
-        indx_ir = 0;
-        check_get_tick = 1;
-        count = 0;
-    }
-}
+int duration_0 = 0;
+int duration_pwm = 0;
+static int level_gpio;
+static bool flag_check_itr = 1;
+static volatile int indx_ir = 0;
 
 static QueueHandle_t gpio_evt_queue = NULL;
 static void IRAM_ATTR gpio_isr_handler(void *arg)
 {
     uint32_t gpio_num = (uint32_t)arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
+
+    /*code*/
+
+    level_gpio = !level_gpio;
+    flag_check_itr = 1;
+    
+    indx_ir++;
+    
 }
 
 static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
 {
-    
-        count++;
-        //printf("running");
-    
-    
-    
-    return true;
-}
+    if (flag_check_itr)
+    {
+        if (level_gpio == 0)
+        { // co pwm
+            duration_pwm++;
+        }
+        else
+        {
+            duration_0++;
+        }
 
-void config_timer(void)
-{
-    TimerHandle_t timer = xTimerCreate(
-        "MyTimer",
-        pdMS_TO_TICKS(TIMER_INTERVAL_MS),
-        pdTRUE,
-        0,
-        timer_callback);
-    xTimerStart(timer, 0);
+        if (duration_pwm > 500 || duration_0 > 500)
+        {
+            duration_pwm = duration_0 = 0;
+            flag_check_itr = 0;
+            indx_ir = 0;
+        }
+    }
+
+    return true;
 }
 
 void config_timer_us(uint64_t time_us)
 {
-   gptimer_handle_t gptimer = NULL;
+    gptimer_handle_t gptimer = NULL;
 
     // Cấu hình GPTimer
     gptimer_config_t timer_config = {
-        .clk_src = GPTIMER_CLK_SRC_DEFAULT,  
-        .direction = GPTIMER_COUNT_UP,       
-        .resolution_hz = 1000000,            // f=  1 MHz (1 tick = 1 us)
+        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = 1000000, // f=  1 MHz (1 tick = 1 us)
     };
     ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
 
     // Cấu hình alarm
     gptimer_alarm_config_t alarm_config = {
-        .alarm_count = time_us,    // Ngắt mỗi 500 000 us
-        .reload_count = 0,                
-        .flags.auto_reload_on_alarm = true,  // Tự động tải lại khi ngắt
+        .alarm_count = time_us, // Ngắt mỗi 500 000 us
+        .reload_count = 0,
+        .flags.auto_reload_on_alarm = true, // Tự động tải lại khi ngắt
     };
     ESP_ERROR_CHECK(gptimer_set_alarm_action(gptimer, &alarm_config));
 
     // Đăng ký callback
     ESP_ERROR_CHECK(gptimer_register_event_callbacks(gptimer, &(gptimer_event_callbacks_t){
-        .on_alarm = itr_timer_cb,
-    }, NULL));
+                                                                  .on_alarm = itr_timer_cb,
+                                                              },
+                                                     NULL));
 
     ESP_ERROR_CHECK(gptimer_enable(gptimer));
 
     // Bật timer
     ESP_ERROR_CHECK(gptimer_start(gptimer));
-        ESP_LOGI(TAG,"done");
+    ESP_LOGI(TAG, "done");
 }
 
 static void example_ledc_init(void)
@@ -155,12 +146,13 @@ static void example_ledc_init(void)
 void gpio_set_pin_input(gpio_num_t GPIO_NUM, gpio_int_type_t INTR_TYPE)
 {
     gpio_config_t gpio_config_pin = {
-        .pin_bit_mask = 1ULL << GPIO_NUM,
+        .pin_bit_mask = GPIO_INPUT_PIN_SEL,
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = INTR_TYPE};
     gpio_config(&gpio_config_pin);
+    gpio_evt_queue = xQueueCreate(30, sizeof(uint32_t));
 }
 void send_pulse_high(uint16_t duration_us)
 {
@@ -217,74 +209,30 @@ void task_send_ir(void *para)
     }
 }
 
-void rx_ir1(void *para)
+void task_test_ir(void *para)
 {
-    last_level = 1;
-
-    uint64_t last_time = 0;
-    uint64_t new_time = 0;
-    check_get_tick = 1;
-
+   
     while (1)
     {
-        new_level = gpio_get_level(IR_PIN);
-
-        if (new_level != last_level)
-        {
-            if (check_get_tick)
-            {
-                last_time = esp_timer_get_time();
-                check_get_tick = 0;
-            }
-        }
-        else
-        {
-            if (!check_get_tick)
-            {
-                new_time = esp_timer_get_time();
-
-                // int duration_data = 0;
-                int duration_data = (esp_timer_get_time() - last_time);
-
-                IR_data[indx_ir] = new_level;
-                IR_duration[indx_ir] = duration_data;
-
-                ESP_LOGI(TAG, "IR_data[%d] is: %d, duration is: %d", indx_ir, new_level, duration_data);
-                indx_ir++;
-                last_level = !last_level;
-                check_get_tick = 1;
-                count = 0;
-            }
-        }
-        // vTaskDelay(1);
+        printf("data indx_ir: %d \n", indx_ir);
+        vTaskDelay(1000);
     }
 }
 
 void app_main(void)
 {
-    // esp_task_wdt_config_t config = {
-    //     .timeout_ms = 5000,                    // Timeout
-    //     .idle_core_mask = (1 << 0) | (1 << 1), // Theo dõi các task IDLE trên lõi 0 và lõi 1
-    //     .trigger_panic = true                  // Kích hoạt panic khi timeout xảy ra
-    // };
-    // esp_task_wdt_init(&config);
-    // // config_timer();
-    // example_ledc_init();
+    //config_timer_us(50);
 
-    // gpio_set_pin_input(IR_PIN, GPIO_INTR_DISABLE);
-    // gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
-    // gpio_isr_handler_add(IR_PIN, gpio_isr_handler, (void *)IR_PIN);
+    example_ledc_init();
 
-    // xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
-    // xTaskCreate(rx_ir, "receive_task", 4096, NULL, 10, NULL);
+    gpio_set_pin_input(IR_PIN, GPIO_INTR_ANYEDGE); // rising and falling
+    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
+    gpio_isr_handler_add(IR_PIN, gpio_isr_handler, (void *)IR_PIN);
 
-    config_timer_us(1000);
+    level_gpio = gpio_get_level(IR_PIN);
 
-    while (1)
-    {
-        ESP_LOGI(TAG, "gia tri count: %d", count);
-        vTaskDelay(1000);
-    }
+    xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
+    xTaskCreate(rx_ir, "rec_task", 4096, NULL, 10, NULL);
 }
 
 /*
@@ -294,83 +242,33 @@ PWM 0   -> LOW  -> IRPIN = 1
 */
 void rx_ir(void *arg)
 {
-    esp_task_wdt_add(NULL);
-
-    unsigned long start_time = 0;
-    unsigned long duration_time = 0;
-    bool header_receive = false;
-    uint8_t data_rec = 0;
-    while (1)
+    uint32_t io_num;
+    for (;;)
     {
-
-        while (gpio_get_level(IR_PIN) == 1)
+        if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY))
         {
 
-            vTaskDelay(1);
-        }
-        start_time = esp_timer_get_time(); // start 9ms Header muc HIGH
-        while (gpio_get_level(IR_PIN) == 0)
-        {
+            // IR_data[indx_ir] = !level_gpio;
+            // if (!level_gpio)
+            // {
+            //     IR_duration[indx_ir] = duration_0;
+            //     printf("co xung pwm\n");
+            // }
+            // else
+            // {
+            //     IR_duration[indx_ir] = duration_pwm;
+            //     printf("ko co xung\n");
+            // }
+            // duration_pwm = duration_0 = 0;
 
-            vTaskDelay(1);
-        }
-        duration_time = esp_timer_get_time() - start_time;
-        if (duration_time < 10000 && duration_time > 8000)
-        { // Header HIGH = 9000us
-            header_receive = true;
-            ESP_LOGI(TAG, "header true!");
-            ESP_LOGI(TAG, "time header high: %lu", duration_time);
-        }
-        if (header_receive)
-        {                                      // co ban tin
-            start_time = esp_timer_get_time(); // start 4,5 ms Header muc LOW
-            while (gpio_get_level(IR_PIN) == 1)
-            {
-                esp_task_wdt_reset();
-                // vTaskDelay(1);
-            }
-            duration_time = esp_timer_get_time() - start_time;
-            ESP_LOGI(TAG, "time header low: %lu", duration_time);
-            if (duration_time > 3500 && duration_time < 5500)
-            {
-                ESP_LOGI(TAG, "check data");
-                // Heder LOW = 4500us
-                for (uint8_t i = 0; i < 8; i++)
-                {
-                    // muc HIGH
-                    while (gpio_get_level(IR_PIN) == 0)
-                    {
-                        esp_task_wdt_reset();
-                        // vTaskDelay(1);
-                    }
-                    // start muc LOW
-                    start_time = esp_timer_get_time();
-                    while (gpio_get_level(IR_PIN) == 1)
-                    {
-                        esp_task_wdt_reset();
-                        // vTaskDelay(1);
-                    }
-                    duration_time = esp_timer_get_time() - start_time;
-                    if (duration_time > 460 && duration_time < 660)
-                    { // bit 0
-                        data_rec <<= 1;
-                    }
-                    else if (duration_time > 1587 && duration_time < 1787) // bit 1
-                    {
-                        data_rec <<= 1;
-                        data_rec |= 1;
-                    }
-                }
+            
 
-                if (data_rec != 0)
-                {
-                    ESP_LOGI(TAG, "Received NEC code: 0x%02X", data_rec);
-                    // printf("data receive: 0x%02X", data_rec);
-                }
-            }
+            // printf("data receive IR_data[%d]: %01X, duration time: %d \n", indx_ir, IR_data[indx_ir], IR_duration[indx_ir]);
+            // indx_ir++;
+
+
+            //printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
+            printf("data indx_ir: %d, level: %d \n", indx_ir, level_gpio);
         }
-        ESP_LOGI(TAG, "finish receive data");
-        // vTaskDelete(NULL);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
