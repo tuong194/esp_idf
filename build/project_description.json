@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "ledc",
-    "project_version":    "87ba0a6-dirty",
+    "project_version":    "6aa65d4-dirty",
     "project_path":       "C:/ESP_IDF/MY_CODE/ledc_basic",
     "idf_path":           "C:/ESP_IDF/v5.3/esp-idf",
     "build_dir":          "C:/ESP_IDF/MY_CODE/ledc_basic/build",

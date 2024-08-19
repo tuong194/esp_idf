@@ -39,25 +39,24 @@ static const char *TAG = "IR";
 
 void rx_ir(void *arg);
 
-uint8_t IR_data[20];
-int IR_duration[20];
+uint8_t IR_data[30];
+int IR_duration[30];
 
-int duration_0 = 0;
-int duration_pwm = 0;
+
 static volatile int duration = 0;
 
 static int level_gpio;
 static bool flag_check_itr = 1;
 static volatile int indx_ir = 0;
 
-static int count = 0;
+
 
 static QueueHandle_t gpio_evt_queue = NULL;
 static void IRAM_ATTR gpio_isr_handler(void *arg) // send data from ISR to QUEUE
 {
     level_gpio = !level_gpio;
     flag_check_itr = 1;
-    IR_data[indx_ir] = !level_gpio;
+    IR_data[indx_ir+1] = !level_gpio;
     IR_duration[indx_ir] = duration;
     duration = 0;
     indx_ir++;
@@ -82,21 +81,7 @@ static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_e
             indx_ir = 0;
         }
 
-        // if (level_gpio == 0)
-        // { // co pwm
-        //     duration_pwm++;
-        // }
-        // else
-        // {
-        //     duration_0++;
-        // }
 
-        // if (duration_pwm > 500 || duration_0 > 500)
-        // {
-        //     duration_pwm = duration_0 = 0;
-        //     flag_check_itr = 0;
-        //     indx_ir = 0;
-        // }
     }
 
     return true;
@@ -229,7 +214,7 @@ void task_test_ir(void *para)
 
     while (1)
     {
-        for (int i = 0; i < 20; i++)
+        for (int i = 0; i < 21; i++)
         {
             printf("data receive IR_data[%d]: %01X, duration time: %d \n", i, IR_data[i], IR_duration[i]);
             vTaskDelay(10);
@@ -269,29 +254,7 @@ void rx_ir(void *arg)
         if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY))
         {
 
-            // IR_data[indx_ir] = !level_gpio;
-            // IR_duration[indx_ir] = duration;
-            //duration = 0;
-            // if (!level_gpio)
-            // {
-            //     IR_duration[indx_ir] = duration_0;
-            //     printf("co xung pwm\n");
-            // }
-            // else
-            // {
-            //     IR_duration[indx_ir] = duration_pwm;
-            //     printf("ko co xung\n");
-            // }
-            // duration_pwm = duration_0 = 0;
 
-            // printf("data receive IR_data[%d]: %01X, duration time: %d \n", indx_ir, IR_data[indx_ir], IR_duration[indx_ir]);
-            // indx_ir++;
-
-            // duration = 0;
-
-            // printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
-            // count++;
-            // printf("data indx_ir: %d, count: %d, level: %d \n", indx_ir, count, level_gpio);
         }
     }
 }
