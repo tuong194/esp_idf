@@ -37,10 +37,20 @@ static const char *TAG = "IR";
 #define IR_PIN 18
 #define GPIO_INPUT_PIN_SEL ((1ULL << IR_PIN))
 
+#define IR_NEC 1
+#define IR_SIRC 2
+#define NEC_HEADER_HIGH 9000
+#define NEC_HEADER_LOW 4500
+#define SIRC_HEADER 2400
+#define NEC_BIT_HIGH 560
+#define NEC_BIT_LOW_ZERO 560
+#define NEC_BIT_LOW_ONE 1690
+
 void rx_ir(void *arg);
 
-uint8_t IR_data[20];
-int IR_duration[20];
+uint8_t IR_data[50];
+uint16_t IR_duration[50];
+uint8_t data_rec = 0;
 
 int duration_0 = 0;
 int duration_pwm = 0;
@@ -50,24 +60,18 @@ static int level_gpio;
 static bool flag_check_itr = 1;
 static volatile int indx_ir = 0;
 
-static int count = 0;
-
 static QueueHandle_t gpio_evt_queue = NULL;
 static void IRAM_ATTR gpio_isr_handler(void *arg) // send data from ISR to QUEUE
 {
     level_gpio = !level_gpio;
     flag_check_itr = 1;
-    IR_data[indx_ir] = !level_gpio;
+    IR_data[indx_ir + 1] = !level_gpio;
     IR_duration[indx_ir] = duration;
     duration = 0;
     indx_ir++;
 
     uint32_t gpio_num = (uint32_t)arg;
     xQueueSendFromISR(gpio_evt_queue, &gpio_num, NULL);
-
-    /*code*/
-
-    // count++
 }
 
 static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_data)
@@ -81,22 +85,6 @@ static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_e
             flag_check_itr = 0;
             indx_ir = 0;
         }
-
-        // if (level_gpio == 0)
-        // { // co pwm
-        //     duration_pwm++;
-        // }
-        // else
-        // {
-        //     duration_0++;
-        // }
-
-        // if (duration_pwm > 500 || duration_0 > 500)
-        // {
-        //     duration_pwm = duration_0 = 0;
-        //     flag_check_itr = 0;
-        //     indx_ir = 0;
-        // }
     }
 
     return true;
@@ -116,7 +104,7 @@ void config_timer_us(uint64_t time_us)
 
     // Cấu hình alarm
     gptimer_alarm_config_t alarm_config = {
-        .alarm_count = time_us, // Ngắt mỗi 500 000 us
+        .alarm_count = time_us, // Ngắt mỗi 50 us
         .reload_count = 0,
         .flags.auto_reload_on_alarm = true, // Tự động tải lại khi ngắt
     };
@@ -221,22 +209,74 @@ void task_send_ir(void *para)
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
         vTaskDelay(5000);
+        send_ir_signal(238);
+        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        vTaskDelay(5000);        
     }
 }
 
-void task_test_ir(void *para)
+uint8_t check_type_IR(void)
+{
+    if (IR_duration[1] * 50 > NEC_HEADER_HIGH - 500 && IR_duration[1] * 50 < NEC_HEADER_HIGH + 500)
+    {
+        if (IR_duration[2] * 50 > NEC_HEADER_LOW - 200 && IR_duration[2] * 50 < NEC_HEADER_LOW + 200)
+        {
+            printf("chuan NEC!!! ");
+            return IR_NEC;
+        }
+    }
+    else if (IR_duration[1] * 50 > SIRC_HEADER - 300 && IR_duration[1] * 50 < SIRC_HEADER + 300)
+    {
+        printf("chuan SIRC!!! ");
+        return IR_SIRC;
+    }
+    return 0;
+}
+
+void parse_data(void)
+{
+    int i = 0;
+    uint8_t check_type = check_type_IR();
+    if (check_type == IR_NEC)
+    {
+        for (i = 4; i <= 18; i += 2) // ktra xung LOW
+        {
+            if (IR_duration[i] * 50 > NEC_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ZERO + 100)
+            {
+                data_rec <<= 1;
+            }
+            else if (IR_duration[i] * 50 > NEC_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ONE + 100)
+            {
+                data_rec <<= 1;
+                data_rec |= 1;
+            }
+        }
+    }
+    else if (check_type == IR_SIRC)
+    {
+        for(i=2; i<=12; i++){
+            
+        }
+    }
+    ESP_LOGI(TAG, "data receive: %u\n", data_rec);
+}
+void task_rec_ir(void *para)
 {
 
     while (1)
     {
         for (int i = 0; i < 20; i++)
         {
-            printf("data receive IR_data[%d]: %01X, duration time: %d \n", i, IR_data[i], IR_duration[i]);
+            printf("data receive IR_data[%d]: %01X, duration time: %u \n", i, IR_data[i], IR_duration[i]);
             vTaskDelay(10);
         }
-        
-        //printf("data indx_ir: %d \n", indx_ir);
-        vTaskDelay(1000);
+        printf("-------------------------------------------------------------------\n");
+
+        parse_data();
+        data_rec = 0;
+
+        vTaskDelay(2300);
     }
 }
 
@@ -253,7 +293,7 @@ void app_main(void)
     level_gpio = gpio_get_level(IR_PIN);
 
     xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
-    xTaskCreate(task_test_ir, "rec_task", 4096, NULL, 10, NULL);
+    xTaskCreate(task_rec_ir, "rec_task", 4096, NULL, 10, NULL);
 }
 
 /*
@@ -268,30 +308,7 @@ void rx_ir(void *arg)
     {
         if (xQueueReceive(gpio_evt_queue, &io_num, portMAX_DELAY))
         {
-
-            // IR_data[indx_ir] = !level_gpio;
-            // IR_duration[indx_ir] = duration;
-            //duration = 0;
-            // if (!level_gpio)
-            // {
-            //     IR_duration[indx_ir] = duration_0;
-            //     printf("co xung pwm\n");
-            // }
-            // else
-            // {
-            //     IR_duration[indx_ir] = duration_pwm;
-            //     printf("ko co xung\n");
-            // }
-            // duration_pwm = duration_0 = 0;
-
-            // printf("data receive IR_data[%d]: %01X, duration time: %d \n", indx_ir, IR_data[indx_ir], IR_duration[indx_ir]);
-            // indx_ir++;
-
-            // duration = 0;
-
-            // printf("GPIO[%"PRIu32"] intr, val: %d\n", io_num, gpio_get_level(io_num));
-            // count++;
-            // printf("data indx_ir: %d, count: %d, level: %d \n", indx_ir, count, level_gpio);
+            printf("data receive IR_data[%d]: %01X, duration time: %d \n", indx_ir, IR_data[indx_ir], IR_duration[indx_ir]);
         }
     }
 }
