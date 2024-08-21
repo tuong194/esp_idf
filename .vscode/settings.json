@@ -10,7 +10,8 @@
     "esp_rom_sys.h": "c",
     "timers.h": "c",
     "esp_log.h": "c",
-    "string.h": "c"
+    "string.h": "c",
+    "cjson.h": "c"
   },
   "idf.openOcdConfigs": [
     "board/esp32s3-builtin.cfg"

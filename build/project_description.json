@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "IR_project",
-    "project_version":    "1e7b9a4-dirty",
+    "project_version":    "cee436d-dirty",
     "project_path":       "C:/ESP_IDF/MY_CODE/IR_project",
     "idf_path":           "C:/ESP_IDF/v5.3/esp-idf",
     "build_dir":          "C:/ESP_IDF/MY_CODE/IR_project/build",
@@ -1165,7 +1165,7 @@
             "managed_reqs": [],
             "managed_priv_reqs": [],
             "file": "C:/ESP_IDF/MY_CODE/IR_project/build/esp-idf/main/libmain.a",
-            "sources": [ "C:/ESP_IDF/MY_CODE/IR_project/main/app_main.c", "C:/ESP_IDF/MY_CODE/IR_project/main/my_gpio.c", "C:/ESP_IDF/MY_CODE/IR_project/main/my_IR.c", "C:/ESP_IDF/MY_CODE/IR_project/main/wifi_STA.c" ],
+            "sources": [ "C:/ESP_IDF/MY_CODE/IR_project/main/app_main.c", "C:/ESP_IDF/MY_CODE/IR_project/main/my_gpio.c", "C:/ESP_IDF/MY_CODE/IR_project/main/my_IR.c", "C:/ESP_IDF/MY_CODE/IR_project/main/wifi_STA.c", "C:/ESP_IDF/MY_CODE/IR_project/main/my_mqtt.c" ],
             "include_dirs": [ "." ]
         },
         "mbedtls": {

@@ -1,5 +1,7 @@
 #include "wifi_STA.h"
 
+extern void init_mqtt(void);
+
 static int s_retry_num = 0;
 static EventGroupHandle_t s_wifi_event_group;
 
@@ -79,6 +81,7 @@ void config_wifi_sta(void)
     {
         ESP_LOGI(TAG_WIFI, "connected to ap SSID:%s password:%s",
                  ESP_WIFI_SSID, ESP_WIFI_PASS);
+        init_mqtt();
     }
     else if (bits & WIFI_FAIL_BIT)
     {
