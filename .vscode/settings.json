@@ -1,8 +1,8 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
-  "idf.portWin": "COM6",
+  "idf.portWin": "COM3",
   "idf.flashType": "UART",
-  "idf.adapterTargetName": "esp32s3",
+  "idf.adapterTargetName": "esp32",
   "files.associations": {
     "i2c_master.h": "c",
     "gpio.h": "c",
@@ -11,9 +11,12 @@
     "timers.h": "c",
     "esp_log.h": "c",
     "string.h": "c",
-    "cjson.h": "c"
+    "cjson.h": "c",
+    "dns.h": "c",
+    "nvs_flash.h": "c",
+    "nvs.h": "c"
   },
   "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
+    "board/esp32-wrover-kit-1.8v.cfg"
   ]
 }

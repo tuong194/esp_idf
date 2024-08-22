@@ -20,6 +20,7 @@
 #include "my_gpio.h"
 #include "my_IR.h"
 #include "wifi_STA.h"
+#include "my_mqtt.h"
 
 
 #define TAG_MAIN "main"
@@ -103,7 +104,7 @@ void init_main(void){
 
 void app_main(void)
 {
-   //init_main();
-   init_wifi();
-   //init_task_IR();
+   init_main();
+   init_task_IR();
+
 }

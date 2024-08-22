@@ -23,7 +23,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
         msg_id = esp_mqtt_client_subscribe(client, "v1/devices/me/rpc/request/+", 0);
         ESP_LOGI(TAG_MQTT, "sent subscribe successful, msg_id=%d", msg_id);
 
-
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESP_LOGI(TAG_MQTT, "MQTT_EVENT_DISCONNECTED");
@@ -89,4 +88,48 @@ void init_mqtt(void)
     esp_log_level_set("outbox", ESP_LOG_VERBOSE);
 
     mqtt_app_start();
+}
+
+
+/* JSON */
+
+void parse_json(const char* json_string) {
+    
+    cJSON *json = cJSON_Parse(json_string);
+    
+    if (json == NULL) {
+        printf("json NULL\n");
+        return;
+    }
+
+    cJSON *id = cJSON_GetObjectItem(json, "id");
+    if (cJSON_IsNumber(id)) {
+        printf("ID: %d\n", id->valueint);
+    }
+
+  
+    cJSON *name = cJSON_GetObjectItem(json, "name");
+    if (cJSON_IsString(name)) {
+        printf("Name: %s\n", name->valuestring);
+    }
+
+    
+    cJSON *temperature = cJSON_GetObjectItem(json, "temperature");
+    if (cJSON_IsNumber(temperature)) {
+        printf("Temperature: %.2f\n", temperature->valuedouble);
+    }
+
+ 
+    cJSON *status = cJSON_GetObjectItem(json, "status");
+    if (cJSON_IsString(status)) {
+        printf("Status: %s\n", status->valuestring);
+    }
+
+    //release
+    cJSON_Delete(json);
+}
+
+void test_json(void) {
+    const char* json_string = "{\"id\": 1, \"name\": \"ESP32\", \"temperature\": 36.5, \"status\": \"active\"}";
+    parse_json(json_string);
 }
