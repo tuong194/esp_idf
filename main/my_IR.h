@@ -16,17 +16,34 @@
 
 #define NEC_HEADER_HIGH     9000
 #define NEC_HEADER_LOW      4500
-#define SIRC_HEADER         2400
-
 #define NEC_BIT_HIGH        560
 #define NEC_BIT_LOW_ZERO    560
 #define NEC_BIT_LOW_ONE     1690
 
+#define SIRC_HEADER         2400
 #define SIRC_BIT_LOW        600
 #define SIRC_BIT_HIGH_ZERO  600
 #define SIRC_BIT_HIGH_ONE   1200
 
 #define RC5_PULSE           890
+
+#define JVC_HEADER_MARK  8440
+#define JVC_HEADER_SPACE 4220
+#define JVC_BIT_HIGH     527
+#define JVC_BIT_LOW_ZERO 527
+#define JVC_BIT_LOW_ONE  1583
+
+#define SAMSUNG_HEADER_MARK 4500
+#define SAMSUNG_HEADER_SPACE 4500
+#define SAMSUNG_BIT_HIGH     560
+#define SAMSUNG_BIT_LOW_ZERO 560
+#define SAMSUNG_BIT_LOW_ONE  1690
+
+#define LG_HEADER_MARK 9000
+#define LG_HEADER_SPACE 4200
+#define LG_BIT_HIGH     500
+#define LG_BIT_LOW_ZERO 550
+#define LG_BIT_LOW_ONE  1580
 
 extern uint16_t IR_duration[100];
 extern int8_t IR_data[100];
@@ -39,7 +56,9 @@ typedef enum{
     UNKNOWN = 0,
     IR_NEC,
     IR_SIRC,
-    IR_RC5
+    IR_RC5,
+    IR_JVC,
+    IR_SAMSUNG
 }ir_type;
 
 typedef enum{

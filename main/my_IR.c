@@ -8,7 +8,7 @@ uint32_t data_rec = 0;
 volatile int duration = 0;
 volatile int indx_ir = 0;
 
-#define TAG  "IR"
+#define TAG "IR"
 
 void send_pulse_high(uint16_t duration_us)
 {
@@ -18,7 +18,7 @@ void send_pulse_high(uint16_t duration_us)
     esp_rom_delay_us(duration_us);
 }
 
-void send_pulse_low(uint16_t duration_us)
+void  send_pulse_low(uint16_t duration_us)
 {
     ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
@@ -45,15 +45,19 @@ void RC5_send_bit_zero(void)
     esp_rom_delay_us(RC5_PULSE);
 }
 
-uint32_t merge_data_ir(uint8_t device_addr, uint8_t cmd_ir, uint8_t extend, sirc_type type_sirc) //12,15 bit
+uint32_t merge_data_ir(uint8_t device_addr, uint8_t cmd_ir, uint8_t extend, sirc_type type_sirc) // 12,15 bit
 {
     uint32_t data_send = 0;
     if (type_sirc == SIRC_20_BIT)
     {
-        data_send = (extend<<12 & 0xFF000)| (device_addr << 7 & 0xF80) | cmd_ir;
-    }else if (type_sirc == SIRC_15_BIT){
+        data_send = (extend << 12 & 0xFF000) | (device_addr << 7 & 0xF80) | cmd_ir;
+    }
+    else if (type_sirc == SIRC_15_BIT)
+    {
         data_send = (device_addr << 7 & 0x7F80) | cmd_ir;
-    }else{
+    }
+    else
+    {
         data_send = (device_addr << 7 & 0xF80) | cmd_ir;
     }
     printf("send data : %lu", data_send);
@@ -65,23 +69,25 @@ void SIRC_send_ir_signal(uint8_t device_addr, uint8_t cmd_ir, uint8_t extend, si
 {
     uint8_t num_bit = 0;
     uint32_t data_send = 0;
-    data_send = merge_data_ir(device_addr, cmd_ir,extend, type_sirc);
+    data_send = merge_data_ir(device_addr, cmd_ir, extend, type_sirc);
     send_pulse_high(SIRC_HEADER);
     send_pulse_low(600);
-    if(type_sirc == SIRC_12_BIT){
+    if (type_sirc == SIRC_12_BIT)
+    {
         num_bit = 12;
-    }else if (type_sirc == SIRC_15_BIT)
+    }
+    else if (type_sirc == SIRC_15_BIT)
     {
         num_bit = 15;
-    }else if (type_sirc == SIRC_20_BIT)
+    }
+    else if (type_sirc == SIRC_20_BIT)
     {
         num_bit = 20;
     }
-    
-    
+
     for (int i = 0; i < num_bit; i++)
     {
-        
+
         if (data_send & 0x01)
         {
             send_pulse_high(SIRC_BIT_HIGH_ONE);
@@ -95,12 +101,12 @@ void SIRC_send_ir_signal(uint8_t device_addr, uint8_t cmd_ir, uint8_t extend, si
     }
 }
 
-
 // example NEC
 void NEC_send_ir_signal(uint8_t adr, uint8_t cmd)
 {
-    uint32_t data_send = 0;;
-    data_send = ((~cmd)<<24 & 0xFF000000)|(cmd<<16 &0xFF0000)|((~adr)<<8 & 0xFF00)|(adr);
+    uint32_t data_send = 0;
+    
+    data_send = ((~cmd) << 24 & 0xFF000000) | (cmd << 16 & 0xFF0000) | ((~adr) << 8 & 0xFF00) | (adr);
 
     printf("NEC data: %lu\n", data_send);
     // Gửi Header
@@ -122,7 +128,6 @@ void NEC_send_ir_signal(uint8_t adr, uint8_t cmd)
         }
         data_send >>= 1;
     }
-
     // Gửi Kết Thúc
     send_pulse_high(560);
     // ets_delay_us(560); // Xung LOW 560 us
@@ -150,16 +155,89 @@ void RC5_send_ir_signal(uint8_t addr, uint8_t cmd) // 5 bit addr, 6 bit cmd
     }
 }
 
-sirc_type check_type_SIRC(void){
-    if(IR_data[33] == 1){
+void JVC_send_ir_signal(uint8_t custom_code, uint8_t data)
+{
+    uint16_t data_send = 0;
+    data_send = data << 8 | custom_code;
+    send_pulse_high(JVC_HEADER_MARK);
+    send_pulse_low(JVC_HEADER_SPACE);
+    for (int i = 0; i < 16; i++)
+    {
+        send_pulse_high(JVC_BIT_HIGH);
+
+        if (data_send & 0x01)
+        {
+            send_pulse_low(JVC_BIT_LOW_ONE);
+        }
+        else
+        {
+            send_pulse_low(JVC_BIT_LOW_ZERO);
+        }
+        data_send >>= 1;
+    }
+    send_pulse_high(JVC_BIT_HIGH);
+}
+
+void SAMSUNG_send_ir_signal(uint8_t addr, uint8_t data)
+{
+    uint32_t data_send = 0;
+    data_send = ((addr) << 24 & 0xFF000000) | (addr << 16 & 0xFF0000) | ((data) << 8 & 0xFF00) | (~data);
+    send_pulse_high(SAMSUNG_HEADER_MARK);
+    send_pulse_low(SAMSUNG_HEADER_SPACE);
+    for (int i = 0; i < 32; i++)
+    {
+        send_pulse_high(SAMSUNG_BIT_HIGH);
+
+        if (data_send & 0x80000000)
+        {
+            send_pulse_low(SAMSUNG_BIT_LOW_ONE);
+        }
+        else
+        {
+            send_pulse_low(SAMSUNG_BIT_LOW_ZERO);
+        }
+        data_send <<= 1;
+    }
+    send_pulse_high(SAMSUNG_BIT_HIGH);
+}
+
+void LG_send_ir_signal(uint8_t addr, uint8_t cmd) // 24 bit
+{
+    uint32_t data_send = 0;
+    data_send = (addr << 16 & 0xFF0000) | ((cmd) << 8 & 0xFF00) | (~cmd);
+    send_pulse_high(LG_HEADER_MARK);
+    send_pulse_low(LG_HEADER_SPACE);
+    for (int i = 0; i < 24; i++)
+    {
+        send_pulse_high(LG_BIT_HIGH);
+
+        if (data_send & 0x01)
+        {
+            send_pulse_low(LG_BIT_LOW_ONE);
+        }
+        else
+        {
+            send_pulse_low(LG_BIT_LOW_ZERO);
+        }
+        data_send >>= 1;
+    }
+    send_pulse_high(LG_BIT_HIGH);
+}
+
+sirc_type check_type_SIRC(void)
+{
+    if (IR_data[33] == 1)
+    {
         return SIRC_20_BIT;
-    }else if (IR_data[27] == 1 && IR_data[33] != 1)
+    }
+    else if (IR_data[27] == 1 && IR_data[33] != 1)
     {
         return SIRC_15_BIT;
-    }else{
+    }
+    else
+    {
         return SIRC_12_BIT;
     }
-    
 }
 
 ir_type check_type_IR(void)
@@ -178,6 +256,30 @@ ir_type check_type_IR(void)
         printf("chuan SIRC!!! \n");
         return IR_SIRC;
     }
+    else if (IR_duration[1] * 50 > JVC_HEADER_MARK - 150 && IR_duration[1] * 50 < JVC_HEADER_MARK + 150)
+    {
+        if (IR_duration[2] * 50 > JVC_HEADER_SPACE - 150 && IR_duration[2] * 50 < JVC_HEADER_SPACE + 150)
+        {
+            printf("chuan JVC!!! \n");
+            return IR_JVC;
+        }
+    }
+    else if (IR_duration[1] * 50 > SAMSUNG_HEADER_MARK - 150 && IR_duration[1] * 50 < SAMSUNG_HEADER_MARK + 150)
+    {
+        if (IR_duration[2] * 50 > SAMSUNG_HEADER_SPACE - 150 && IR_duration[2] * 50 < SAMSUNG_HEADER_SPACE + 150)
+        {
+            printf("chuan SAMSUNG!!! \n");
+            return IR_SAMSUNG;
+        }
+    }    
+    else if (IR_duration[1] * 50 > LG_HEADER_MARK - 150 && IR_duration[1] * 50 < LG_HEADER_MARK + 150)
+    {
+        if (IR_duration[2] * 50 > LG_HEADER_SPACE - 150 && IR_duration[2] * 50 < LG_HEADER_SPACE + 100)
+        {
+            printf("chuan LG!!! \n");
+            return IR_SAMSUNG;
+        }
+    }    
     else
     {
         for (int i = 1; i <= 28; i++)
@@ -203,100 +305,191 @@ ir_type check_type_IR(void)
     return UNKNOWN;
 }
 
-void parse_data(void)
+void parse_data_NEC(void)
 {
     int i = 0;
+    for (i = 66; i >= 4; i -= 2) // ktra xung LOW
+    {
+        if (IR_duration[i] * 50 > NEC_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ZERO + 100)
+        {
+            data_rec <<= 1;
+        }
+        else if (IR_duration[i] * 50 > NEC_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ONE + 100)
+        {
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+    }
+    uint8_t addr = data_rec & 0xFF;
+    uint8_t cmd = (data_rec >> 16) & 0xFF;
+    printf("address device: 0x%02X \n", addr); // 5 bit
+    printf("cmd is: 0x%02X \n", cmd);          // 7 bit
+}
+
+void parse_data_SIRC(void)
+{
+    int i = 0;
+    uint8_t num_bit = 0;
+    sirc_type check_sirc = check_type_SIRC();
+    if (check_sirc == SIRC_12_BIT)
+    {
+        num_bit = 25;
+    }
+    else if (check_sirc == SIRC_15_BIT)
+    {
+        num_bit = 31;
+    }
+    else if (check_sirc == SIRC_20_BIT)
+    {
+        num_bit = 41;
+    }
+
+    for (i = num_bit; i >= 3; i -= 2)
+    {                                                                                                         // check pulse
+        if (IR_duration[i] * 50 > SIRC_BIT_HIGH_ZERO - 150 && IR_duration[i] * 50 < SIRC_BIT_HIGH_ZERO + 150) // bit 0
+        {
+            data_rec <<= 1;
+        }
+        else if (IR_duration[i] * 50 > SIRC_BIT_HIGH_ONE - 150 && IR_duration[i] * 50 < SIRC_BIT_HIGH_ONE + 150) // bit 1
+        {
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+    }
+    uint8_t addr = 0;
+    uint8_t cmd = 0;
+    uint8_t extend = 0;
+    if (check_sirc == SIRC_20_BIT)
+    {
+        extend = data_rec >> 12 & 0xFF;
+        addr = data_rec >> 7 & 0x1F;
+        cmd = data_rec & 0x7F;
+    }
+    else
+    {
+        addr = data_rec >> 7;
+        cmd = data_rec & 0x7F;
+        extend = 0;
+    }
+    printf("extend is: 0x%02X \n", extend);    // 8 bit
+    printf("address device: 0x%02X \n", addr); // 5 or 7 bit
+    printf("cmd is: 0x%02X \n", cmd);          // 7 bit
+}
+
+void parse_data_RC5(void)
+{
+    int i =0;
+    for (i = 4; i <= 28; i++)
+    {
+        if (i == 4 && IR_duration[i + 1] * 50 > (RC5_PULSE - 150) && IR_duration[i + 1] * 50 < (RC5_PULSE + 150))
+            i += 1;
+        if (IR_data[i] == 0 && IR_duration[i] > 0)
+        {
+            // printf("i=%d, bit1\n", i);
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+        else if (IR_data[i] == 1)
+        {
+            // printf("i=%d, bit0\n", i);
+            data_rec <<= 1;
+        }
+
+        if (IR_duration[i + 1] * 50 > (RC5_PULSE - 150) && IR_duration[i + 1] * 50 < (RC5_PULSE + 150))
+        {
+            i++;
+        }
+    }
+    uint8_t addr = data_rec >> 6;
+    uint8_t cmd = data_rec & 0x3F;
+    printf("address device: 0x%02X \n", addr); // 5 bit
+    printf("cmd is: 0x%02X \n", cmd);          // 6 bit
+}
+
+void parse_data_JVC(void){
+    int i = 0;
+    for (i = 34; i >= 4; i -= 2) // ktra xung LOW
+    {
+        if (IR_duration[i] * 50 > JVC_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < JVC_BIT_LOW_ZERO + 100)
+        {
+            data_rec <<= 1;
+        }
+        else if (IR_duration[i] * 50 > JVC_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < JVC_BIT_LOW_ONE + 100)
+        {
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+    }
+    uint8_t data = data_rec>>8 & 0xFF;
+    uint8_t custom = data_rec & 0xFF;
+    printf("data: 0x%02X \n", data); // 8 bit
+    printf("custom is: 0x%02X \n", custom); // 8 bit
+}
+
+void parse_data_SAMSUNG(void){
+    int i = 0;
+    for (i = 4; i <= 66; i += 2) // ktra xung LOW
+    {
+        if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ZERO + 100)
+        {
+            data_rec <<= 1;
+        }
+        else if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ONE + 100)
+        {
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+    }
+    uint8_t addr = data_rec>>24 & 0xFF;
+    uint8_t data = data_rec>>8 & 0xFF;
+    printf("addr is: 0x%02X \n", addr); // 8 bit
+    printf("data is: 0x%02X \n", data); // 8 bit
+}
+
+void parse_data_LG(void){
+    int i = 0;
+    for (i = 50; i >= 4; i -= 2) // ktra xung LOW
+    {
+        if (IR_duration[i] * 50 > LG_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < LG_BIT_LOW_ZERO + 100)
+        {
+            data_rec <<= 1;
+        }
+        else if (IR_duration[i] * 50 > LG_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < LG_BIT_LOW_ONE + 100)
+        {
+            data_rec <<= 1;
+            data_rec |= 1;
+        }
+    }
+    uint8_t data = data_rec>>16 & 0xFF;
+    uint8_t addr = data_rec>>8 & 0xFF;
+    printf("data: 0x%02X \n", data); // 8 bit
+    printf("addr is: 0x%02X \n", addr); // 8 bit
+}
+
+void parse_data(void)
+{
+    
     ir_type check_type = check_type_IR();
     if (check_type == IR_NEC)
     {
-        for (i = 66; i >= 4; i -= 2) // ktra xung LOW
-        {
-            if (IR_duration[i] * 50 > NEC_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ZERO + 100)
-            {
-                data_rec <<= 1;
-            }
-            else if (IR_duration[i] * 50 > NEC_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < NEC_BIT_LOW_ONE + 100)
-            {
-                data_rec <<= 1;
-                data_rec |= 1;
-            }
-        }
-        uint8_t addr = data_rec & 0xFF;
-        uint8_t cmd = (data_rec>>16) & 0xFF;
-        printf("address device: 0x%02X \n", addr); // 5 bit
-        printf("cmd is: 0x%02X \n", cmd);       // 7 bit
+        parse_data_NEC();
     }
     else if (check_type == IR_SIRC)
     {
-        uint8_t num_bit = 0;
-        sirc_type check_sirc = check_type_SIRC();
-        if (check_sirc == SIRC_12_BIT)
-        {
-            num_bit = 25;
-        }else if (check_sirc == SIRC_15_BIT)
-        {
-            num_bit = 31;
-        }else if (check_sirc == SIRC_20_BIT)
-        {
-            num_bit = 41;
-        }
-        
-        for (i = num_bit; i >= 3; i -= 2)
-        {   // check pulse
-            if (IR_duration[i] * 50 > SIRC_BIT_HIGH_ZERO - 150 && IR_duration[i] * 50 < SIRC_BIT_HIGH_ZERO + 150) // bit 0
-            {
-                data_rec <<= 1;
-            }
-            else if (IR_duration[i] * 50 > SIRC_BIT_HIGH_ONE - 150 && IR_duration[i] * 50 < SIRC_BIT_HIGH_ONE + 150) // bit 1
-            {
-                data_rec <<= 1;
-                data_rec |= 1;
-            }
-        }
-        uint8_t addr = 0;
-        uint8_t cmd = 0;
-        uint8_t extend = 0;
-        if(check_sirc == SIRC_20_BIT){
-            extend = data_rec >> 12 & 0xFF;
-            addr = data_rec>>7 &0x1F;
-            cmd = data_rec &0x7F;
-        }else{
-            addr = data_rec >> 7;
-            cmd = data_rec & 0x7F;
-            extend = 0;
-
-        }
-        printf("extend is: 0x%02X \n", extend); // 8 bit
-        printf("address device: 0x%02X \n", addr); // 5 or 7 bit
-        printf("cmd is: 0x%02X \n", cmd);       // 7 bit
+        parse_data_SIRC();
     }
     else if (check_type == IR_RC5)
     {
-        for (i = 4; i <= 28; i++)
-        {
-            if(i==4 && IR_duration[i + 1] * 50 > (RC5_PULSE - 150) && IR_duration[i + 1] * 50 < (RC5_PULSE + 150)) i += 1;
-            if (IR_data[i] == 0 && IR_duration[i] > 0)
-            {
-                //printf("i=%d, bit1\n", i);
-                data_rec <<= 1;
-                data_rec |= 1;
-            }
-            else if (IR_data[i] == 1)
-            {
-                //printf("i=%d, bit0\n", i);
-                data_rec <<= 1;
-            }
-
-            if (IR_duration[i + 1] * 50 > (RC5_PULSE - 150) && IR_duration[i + 1] * 50 < (RC5_PULSE + 150))
-            {
-                i++;
-            }
-        }
-        uint8_t addr = data_rec >>6;
-        uint8_t cmd = data_rec & 0x3F;
-        printf("address device: 0x%02X \n", addr); // 5 bit
-        printf("cmd is: 0x%02X \n", cmd);       // 6 bit
+        parse_data_RC5();
     }
+    else if (check_type == IR_JVC)
+    {
+        parse_data_JVC();
+    }
+    else if (check_type == IR_SAMSUNG)
+    {
+        parse_data_SAMSUNG();
+    }    
 
     ESP_LOGI(TAG, "data receive: %lu\n", data_rec);
 }
@@ -306,28 +499,20 @@ void task_send_ir(void *para)
     vTaskDelay(1000);
     while (1)
     {
-        // NEC_send_ir_signal(0x03,0x31);                     // NEC
-        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
-        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        // vTaskDelay(5000/portTICK_PERIOD_MS);
-        SIRC_send_ir_signal(0x01, 0x15,0, SIRC_12_BIT);             // SIRC
+        NEC_send_ir_signal(0x03,0x31);                     // NEC
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
         vTaskDelay(5000/portTICK_PERIOD_MS);
 
-        SIRC_send_ir_signal(0x5D, 0x7E,0, SIRC_15_BIT);             // SIRC
+        SIRC_send_ir_signal(0x01, 0x15, 0, SIRC_12_BIT); // SIRC
+        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0);     // Tắt PWM
+        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+        RC5_send_ir_signal(0x05, 0x32);
         ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
         ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
         vTaskDelay(5000/portTICK_PERIOD_MS);
-
-        SIRC_send_ir_signal(0x1B, 0x69, 0xA3, SIRC_20_BIT);             // SIRC
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        vTaskDelay(5000/portTICK_PERIOD_MS);        
-        // RC5_send_ir_signal(0x05, 0x32);
-        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
-        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        // vTaskDelay(5000/portTICK_PERIOD_MS);
     }
 }
 
@@ -348,7 +533,7 @@ void task_rec_ir(void *para)
         memset(IR_data, -1, sizeof(IR_data));
         memset(IR_duration, 0, sizeof(IR_duration));
 
-        vTaskDelay(4500/portTICK_PERIOD_MS);
+        vTaskDelay(4500 / portTICK_PERIOD_MS);
     }
 }
 void init_task_IR(void)
