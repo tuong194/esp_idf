@@ -13,9 +13,6 @@
 #include "esp_rom_sys.h"
 
 
-#define IR_NEC  1
-#define IR_SIRC 2
-#define IR_RC5  3
 
 #define NEC_HEADER_HIGH     9000
 #define NEC_HEADER_LOW      4500
@@ -38,6 +35,18 @@ extern uint32_t data_rec;
 extern volatile int duration;
 extern volatile int indx_ir;
 
+typedef enum{
+    UNKNOWN = 0,
+    IR_NEC,
+    IR_SIRC,
+    IR_RC5
+}ir_type;
+
+typedef enum{
+    SIRC_12_BIT=0,
+    SIRC_15_BIT,
+    SIRC_20_BIT
+}sirc_type;
 
 void task_send_ir(void *para);
 void task_rec_ir(void *para);
