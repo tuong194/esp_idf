@@ -22,7 +22,6 @@
 #include "wifi_STA.h"
 #include "my_mqtt.h"
 
-
 #define TAG_MAIN "main"
 
 static int level_gpio;
@@ -91,7 +90,8 @@ void config_timer_us(uint64_t time_us)
    ESP_LOGI(TAG_MAIN, "done");
 }
 
-void init_main(void){
+void init_main(void)
+{
    config_timer_us(50);
    ledc_pwm_init();
    gpio_set_pin_input(IR_PIN, GPIO_INTR_ANYEDGE); // rising and falling
@@ -99,12 +99,35 @@ void init_main(void){
    gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT);
    gpio_isr_handler_add(IR_PIN, gpio_isr_handler, (void *)IR_PIN);
    level_gpio = gpio_get_level(IR_PIN);
+}
+
+void task1(void *para)
+{
+
+   ESP_LOGI(TAG_MAIN,"init task1");
+   esp_rom_delay_us(100000);
+   while (1)
+   {
+      ESP_LOGI(TAG_MAIN,"task 1 running");
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+   }
+}
+void task2(void *para)
+{
+   ESP_LOGI(TAG_MAIN,"init task2");
    
+   while (1)
+   {
+      ESP_LOGI(TAG_MAIN,"task 2 running");
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+   }
 }
 
 void app_main(void)
 {
-   init_main();
-   init_task_IR();
+   // init_main();
+   // init_task_IR();
 
+   xTaskCreate(task1, "task1", 2048, NULL, 10, NULL);
+   xTaskCreate(task2, "task2", 2048, NULL, 10, NULL);
 }
