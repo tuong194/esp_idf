@@ -25,7 +25,7 @@
 #define TAG_MAIN "main"
 
 static int level_gpio;
-static bool flag_check_itr = 1;
+static bool flag_check_itr;
 
 static QueueHandle_t gpio_evt_queue = NULL;
 static void IRAM_ATTR gpio_isr_handler(void *arg) // send data from ISR to QUEUE
@@ -46,7 +46,7 @@ static bool IRAM_ATTR itr_timer_cb(gptimer_handle_t timer, const gptimer_alarm_e
    if (flag_check_itr)
    {
       duration++;
-      if (duration > 230)
+      if (duration > 1000)
       {
          duration = 0;
          flag_check_itr = 0;
@@ -101,33 +101,22 @@ void init_main(void)
    level_gpio = gpio_get_level(IR_PIN);
 }
 
-void task1(void *para)
-{
-
-   ESP_LOGI(TAG_MAIN,"init task1");
-   esp_rom_delay_us(100000);
+void task1(void *para){
+   esp_rom_delay_us(11000);
+   printf("init \n");
    while (1)
    {
-      ESP_LOGI(TAG_MAIN,"task 1 running");
-      vTaskDelay(1000 / portTICK_PERIOD_MS);
+      printf("task running\n");
+      vTaskDelay(100);
    }
-}
-void task2(void *para)
-{
-   ESP_LOGI(TAG_MAIN,"init task2");
    
-   while (1)
-   {
-      ESP_LOGI(TAG_MAIN,"task 2 running");
-      vTaskDelay(1000 / portTICK_PERIOD_MS);
-   }
 }
 
 void app_main(void)
 {
-   // init_main();
-   // init_task_IR();
-
-   xTaskCreate(task1, "task1", 2048, NULL, 10, NULL);
-   xTaskCreate(task2, "task2", 2048, NULL, 10, NULL);
+   init_main();
+   init_task_IR();
+   
+   
 }
+

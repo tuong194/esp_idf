@@ -45,6 +45,11 @@
 #define LG_BIT_LOW_ZERO 550
 #define LG_BIT_LOW_ONE  1580
 
+#define SHARP_MARK     320
+#define SHARP_SPACE_BIT_ONE 1800
+#define SHARP_SPACE_BIT_ZERO 800
+
+
 extern uint16_t IR_duration[100];
 extern int8_t IR_data[100];
 
@@ -58,7 +63,9 @@ typedef enum{
     IR_SIRC,
     IR_RC5,
     IR_JVC,
-    IR_SAMSUNG
+    IR_SAMSUNG,
+    IR_LG,
+    IR_SHARP
 }ir_type;
 
 typedef enum{

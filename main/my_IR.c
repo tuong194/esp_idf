@@ -18,7 +18,7 @@ void send_pulse_high(uint16_t duration_us)
     esp_rom_delay_us(duration_us);
 }
 
-void  send_pulse_low(uint16_t duration_us)
+void send_pulse_low(uint16_t duration_us)
 {
     ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
@@ -39,7 +39,7 @@ void RC5_send_bit_zero(void)
 {
     ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 512); // Tắt PWM
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-    esp_rom_delay_us(RC5_PULSE);
+
     ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0);
     ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
     esp_rom_delay_us(RC5_PULSE);
@@ -105,7 +105,7 @@ void SIRC_send_ir_signal(uint8_t device_addr, uint8_t cmd_ir, uint8_t extend, si
 void NEC_send_ir_signal(uint8_t adr, uint8_t cmd)
 {
     uint32_t data_send = 0;
-    
+
     data_send = ((~cmd) << 24 & 0xFF000000) | (cmd << 16 & 0xFF0000) | ((~adr) << 8 & 0xFF00) | (adr);
 
     printf("NEC data: %lu\n", data_send);
@@ -181,7 +181,8 @@ void JVC_send_ir_signal(uint8_t custom_code, uint8_t data)
 void SAMSUNG_send_ir_signal(uint8_t addr, uint8_t data)
 {
     uint32_t data_send = 0;
-    data_send = ((addr) << 24 & 0xFF000000) | (addr << 16 & 0xFF0000) | ((data) << 8 & 0xFF00) | (~data);
+    data_send = (addr << 24 & 0xFF000000) | (addr << 16 & 0xFF0000) | (data << 8 & 0xFF00) | (~data & 0xFF);
+
     send_pulse_high(SAMSUNG_HEADER_MARK);
     send_pulse_low(SAMSUNG_HEADER_SPACE);
     for (int i = 0; i < 32; i++)
@@ -204,7 +205,8 @@ void SAMSUNG_send_ir_signal(uint8_t addr, uint8_t data)
 void LG_send_ir_signal(uint8_t addr, uint8_t cmd) // 24 bit
 {
     uint32_t data_send = 0;
-    data_send = (addr << 16 & 0xFF0000) | ((cmd) << 8 & 0xFF00) | (~cmd);
+    data_send = (addr << 16 & 0xFF0000) | ((cmd) << 8 & 0xFF00) | (~cmd & 0xFF);
+    printf("LG send: %lu", data_send);
     send_pulse_high(LG_HEADER_MARK);
     send_pulse_low(LG_HEADER_SPACE);
     for (int i = 0; i < 24; i++)
@@ -228,14 +230,17 @@ sirc_type check_type_SIRC(void)
 {
     if (IR_data[33] == 1)
     {
+        printf("SIRC 20 bit\n");
         return SIRC_20_BIT;
     }
     else if (IR_data[27] == 1 && IR_data[33] != 1)
     {
+        printf("SIRC 15 bit\n");
         return SIRC_15_BIT;
     }
     else
     {
+        printf("SIRC 12 bit\n");
         return SIRC_12_BIT;
     }
 }
@@ -245,11 +250,16 @@ ir_type check_type_IR(void)
     int count = 0;
     if (IR_duration[1] * 50 > NEC_HEADER_HIGH - 150 && IR_duration[1] * 50 < NEC_HEADER_HIGH + 150)
     {
-        if (IR_duration[2] * 50 > NEC_HEADER_LOW - 150 && IR_duration[2] * 50 < NEC_HEADER_LOW + 150)
+        if (IR_duration[2] * 50 > NEC_HEADER_LOW - 100 && IR_duration[2] * 50 < NEC_HEADER_LOW + 100)
         {
-            printf("chuan NEC!!! \n");
+            printf("chuan LG!!! \n");
             return IR_NEC;
         }
+        // else if (IR_duration[2] * 50 > LG_HEADER_SPACE - 100 && IR_duration[2] * 50 < LG_HEADER_SPACE + 100)
+        // {
+        //     printf("chuan LG!!! \n");
+        //     return IR_LG;
+        // }
     }
     else if (IR_duration[1] * 50 > SIRC_HEADER - 150 && IR_duration[1] * 50 < SIRC_HEADER + 150)
     {
@@ -271,34 +281,30 @@ ir_type check_type_IR(void)
             printf("chuan SAMSUNG!!! \n");
             return IR_SAMSUNG;
         }
-    }    
-    else if (IR_duration[1] * 50 > LG_HEADER_MARK - 150 && IR_duration[1] * 50 < LG_HEADER_MARK + 150)
-    {
-        if (IR_duration[2] * 50 > LG_HEADER_SPACE - 150 && IR_duration[2] * 50 < LG_HEADER_SPACE + 100)
-        {
-            printf("chuan LG!!! \n");
-            return IR_SAMSUNG;
-        }
-    }    
-    else
-    {
-        for (int i = 1; i <= 28; i++)
-        {
-            if (IR_duration[i] * 50 > (RC5_PULSE - 150) && IR_duration[i] * 50 < (RC5_PULSE + 150))
-            {
-                count += 1;
-            }
-            else if (IR_duration[i] * 50 > (2 * RC5_PULSE - 150) && IR_duration[i] * 50 < (2 * RC5_PULSE + 150))
-            {
+    }
 
-                count += 2;
-            }
-        }
-        printf("gia tri count: %d\n", count);
-        if (count >= 26)
+    else if (IR_duration[1] * 50 > (RC5_PULSE - 150) && IR_duration[1] * 50 < (RC5_PULSE + 150))
+    {
+        if (IR_duration[3] * 50 > (2 * RC5_PULSE - 150) && IR_duration[3] * 50 < (2 * RC5_PULSE + 150))
         {
             printf("chuan RC5!!! \n");
             return IR_RC5;
+        }
+    }
+    else
+    {
+        for (int i = 1; i <= 31; i++)
+        {
+            if (IR_duration[i] * 50 > (SHARP_MARK - 150) && IR_duration[i] * 50 < (SHARP_MARK + 150))
+            {
+                count += 1;
+            }
+        }
+        // printf("gia tri count: %d\n", count);
+        if (count == 16)
+        {
+            printf("chuan SHARP!!! \n");
+            return IR_SHARP;
         }
     }
 
@@ -378,7 +384,7 @@ void parse_data_SIRC(void)
 
 void parse_data_RC5(void)
 {
-    int i =0;
+    int i = 0;
     for (i = 4; i <= 28; i++)
     {
         if (i == 4 && IR_duration[i + 1] * 50 > (RC5_PULSE - 150) && IR_duration[i + 1] * 50 < (RC5_PULSE + 150))
@@ -406,7 +412,8 @@ void parse_data_RC5(void)
     printf("cmd is: 0x%02X \n", cmd);          // 6 bit
 }
 
-void parse_data_JVC(void){
+void parse_data_JVC(void)
+{
     int i = 0;
     for (i = 34; i >= 4; i -= 2) // ktra xung LOW
     {
@@ -420,33 +427,35 @@ void parse_data_JVC(void){
             data_rec |= 1;
         }
     }
-    uint8_t data = data_rec>>8 & 0xFF;
+    uint8_t data = data_rec >> 8 & 0xFF;
     uint8_t custom = data_rec & 0xFF;
-    printf("data: 0x%02X \n", data); // 8 bit
+    printf("data: 0x%02X \n", data);        // 8 bit
     printf("custom is: 0x%02X \n", custom); // 8 bit
 }
 
-void parse_data_SAMSUNG(void){
+void parse_data_SAMSUNG(void)
+{
     int i = 0;
     for (i = 4; i <= 66; i += 2) // ktra xung LOW
     {
-        if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ZERO - 100 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ZERO + 100)
+        if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ZERO - 150 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ZERO + 150)
         {
             data_rec <<= 1;
         }
-        else if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ONE - 100 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ONE + 100)
+        else if (IR_duration[i] * 50 > SAMSUNG_BIT_LOW_ONE - 150 && IR_duration[i] * 50 < SAMSUNG_BIT_LOW_ONE + 150)
         {
             data_rec <<= 1;
             data_rec |= 1;
         }
     }
-    uint8_t addr = data_rec>>24 & 0xFF;
-    uint8_t data = data_rec>>8 & 0xFF;
+    uint8_t addr = data_rec >> 24 & 0xFF;
+    uint8_t data = data_rec >> 8 & 0xFF;
     printf("addr is: 0x%02X \n", addr); // 8 bit
     printf("data is: 0x%02X \n", data); // 8 bit
 }
 
-void parse_data_LG(void){
+void parse_data_LG(void)
+{
     int i = 0;
     for (i = 50; i >= 4; i -= 2) // ktra xung LOW
     {
@@ -460,17 +469,44 @@ void parse_data_LG(void){
             data_rec |= 1;
         }
     }
-    uint8_t data = data_rec>>16 & 0xFF;
-    uint8_t addr = data_rec>>8 & 0xFF;
-    printf("data: 0x%02X \n", data); // 8 bit
+    uint8_t data = data_rec >> 16 & 0xFF;
+    uint8_t addr = data_rec >> 8 & 0xFF;
+    printf("data: 0x%02X \n", data);    // 8 bit
     printf("addr is: 0x%02X \n", addr); // 8 bit
+}
+
+void parse_data_SHARP(void)
+{
+    int i = 0;
+    if (IR_duration[28] * 50 > SHARP_SPACE_BIT_ONE - 150 && IR_duration[28] * 50 < SHARP_SPACE_BIT_ONE + 150)
+    {
+        if (IR_duration[30] * 50 > SHARP_SPACE_BIT_ZERO - 150 && IR_duration[30] * 50 < SHARP_SPACE_BIT_ZERO + 150)
+        {
+            for (i = 26; i >= 2; i -= 2) // ktra xung H
+            {
+                if (IR_duration[i] * 50 > SHARP_SPACE_BIT_ZERO - 150 && IR_duration[i] * 50 < SHARP_SPACE_BIT_ZERO + 150)
+                {
+                    data_rec <<= 1;
+                }
+                else if (IR_duration[i] * 50 > SHARP_SPACE_BIT_ONE - 150 && IR_duration[i] * 50 < SHARP_SPACE_BIT_ONE + 150)
+                {
+                    data_rec <<= 1;
+                    data_rec |= 1;
+                }
+            }
+            uint8_t cmd = data_rec >> 5 & 0xFF;
+            uint8_t addr = data_rec & 0x1F;
+            printf("cmd is: 0x%02X \n", cmd);   // 8 bit
+            printf("addr is: 0x%02X \n", addr); // 5 bit
+        }
+    }
 }
 
 void parse_data(void)
 {
-    
+
     ir_type check_type = check_type_IR();
-    if (check_type == IR_NEC)
+    if (check_type == IR_NEC) // LG
     {
         parse_data_NEC();
     }
@@ -489,9 +525,12 @@ void parse_data(void)
     else if (check_type == IR_SAMSUNG)
     {
         parse_data_SAMSUNG();
-    }    
-
-    ESP_LOGI(TAG, "data receive: %lu\n", data_rec);
+    }
+    else if (check_type == IR_SHARP)
+    {
+        parse_data_SHARP();
+    }
+    // ESP_LOGI(TAG, "data receive: %lu\n", data_rec);
 }
 
 void task_send_ir(void *para)
@@ -499,20 +538,35 @@ void task_send_ir(void *para)
     vTaskDelay(1000);
     while (1)
     {
-        NEC_send_ir_signal(0x03,0x31);                     // NEC
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        vTaskDelay(5000/portTICK_PERIOD_MS);
+        // NEC_send_ir_signal(0x03,0x31);                     // NEC
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000/portTICK_PERIOD_MS);
 
-        SIRC_send_ir_signal(0x01, 0x15, 0, SIRC_12_BIT); // SIRC
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0);     // Tắt PWM
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
+        // SIRC_send_ir_signal(0x01, 0x15, 0, SIRC_12_BIT); // SIRC
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0);     // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000 / portTICK_PERIOD_MS);
 
-        RC5_send_ir_signal(0x05, 0x32);
-        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
-        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
-        vTaskDelay(5000/portTICK_PERIOD_MS);
+        // RC5_send_ir_signal(0x05, 0x32);
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000/portTICK_PERIOD_MS);
+
+        // JVC_send_ir_signal(0x05, 0x32);
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000/portTICK_PERIOD_MS);
+
+        // SAMSUNG_send_ir_signal(0x05, 0x32);
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000/portTICK_PERIOD_MS);
+
+        // LG_send_ir_signal(0x05, 0x32);
+        // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        // vTaskDelay(5000/portTICK_PERIOD_MS);
     }
 }
 
@@ -521,24 +575,25 @@ void task_rec_ir(void *para)
 
     while (1)
     {
-        // for (int i = 0; i < 30; i++)
+        // for (int i = 0; i < 5; i++)
         // {
         //     printf("data receive IR_data[%d]: %01X, duration time: %u \n", i, IR_data[i], IR_duration[i]);
         //     vTaskDelay(10/portTICK_PERIOD_MS);
         // }
-        printf("---------------------------------------------------\n");
+        // printf("---------------------------------------------------\n");
 
         parse_data();
+
         data_rec = 0;
         memset(IR_data, -1, sizeof(IR_data));
         memset(IR_duration, 0, sizeof(IR_duration));
 
-        vTaskDelay(4500 / portTICK_PERIOD_MS);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 void init_task_IR(void)
 {
     memset(IR_data, -1, sizeof(IR_data));
-    xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
+    // xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
     xTaskCreate(task_rec_ir, "rec_task", 4096, NULL, 10, NULL);
 }
