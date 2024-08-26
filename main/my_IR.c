@@ -1,8 +1,8 @@
 #include "my_IR.h"
 #include "my_gpio.h"
 
-uint16_t IR_duration[100];
-int8_t IR_data[100];
+uint16_t IR_duration[500];
+int8_t IR_data[500];
 
 uint32_t data_rec = 0;
 volatile int duration = 0;
@@ -155,10 +155,10 @@ void RC5_send_ir_signal(uint8_t addr, uint8_t cmd) // 5 bit addr, 6 bit cmd
     }
 }
 
-void JVC_send_ir_signal(uint8_t custom_code, uint8_t data)
+void JVC_send_ir_signal(uint8_t addr, uint8_t cmd)
 {
     uint16_t data_send = 0;
-    data_send = data << 8 | custom_code;
+    data_send = cmd << 8 | addr;
     send_pulse_high(JVC_HEADER_MARK);
     send_pulse_low(JVC_HEADER_SPACE);
     for (int i = 0; i < 16; i++)
@@ -245,6 +245,33 @@ sirc_type check_type_SIRC(void)
     }
 }
 
+bool check_casper_AC(void)
+{
+    int i =0;
+    uint8_t data_check = 0;
+    for ( i = 4; i <= 18; i += 2)
+    {
+        //printf("0x%02X ",IR_duration[i]);
+        if (IR_duration[i] * 50 > NEC_BIT_LOW_ZERO - 150 && IR_duration[i] * 50 < NEC_BIT_LOW_ZERO + 150)
+        {
+            //printf("0 ");
+            data_check <<= 1;
+        }
+        else if (IR_duration[i] * 50 > NEC_BIT_LOW_ONE - 150 && IR_duration[i] * 50 < NEC_BIT_LOW_ONE + 150)
+        {
+            //printf("1 ");
+            data_check <<= 1;
+            data_check |= 1;
+        }
+    }
+    //printf("\ndata check casper AC: 0x%02X\n", data_check);
+    if (data_check == 0xC3)
+    {
+        return true;
+    }
+    return false;
+}
+
 ir_type check_type_IR(void)
 {
     int count = 0;
@@ -252,8 +279,17 @@ ir_type check_type_IR(void)
     {
         if (IR_duration[2] * 50 > NEC_HEADER_LOW - 100 && IR_duration[2] * 50 < NEC_HEADER_LOW + 100)
         {
-            printf("chuan LG!!! \n");
-            return IR_NEC;
+            bool check = check_casper_AC();
+            if (check)
+            {
+                printf("\nchuan CASPER AC!!! \n");
+                return IR_CASPER_AC;
+            }
+            else
+            {
+                printf("\nchuan NEC!!! \n");
+                return IR_NEC;
+            }
         }
         // else if (IR_duration[2] * 50 > LG_HEADER_SPACE - 100 && IR_duration[2] * 50 < LG_HEADER_SPACE + 100)
         // {
@@ -263,14 +299,14 @@ ir_type check_type_IR(void)
     }
     else if (IR_duration[1] * 50 > SIRC_HEADER - 150 && IR_duration[1] * 50 < SIRC_HEADER + 150)
     {
-        printf("chuan SIRC!!! \n");
+        printf("\nchuan SIRC!!! \n");
         return IR_SIRC;
     }
     else if (IR_duration[1] * 50 > JVC_HEADER_MARK - 150 && IR_duration[1] * 50 < JVC_HEADER_MARK + 150)
     {
         if (IR_duration[2] * 50 > JVC_HEADER_SPACE - 150 && IR_duration[2] * 50 < JVC_HEADER_SPACE + 150)
         {
-            printf("chuan JVC!!! \n");
+            printf("\nchuan JVC!!! \n");
             return IR_JVC;
         }
     }
@@ -278,7 +314,7 @@ ir_type check_type_IR(void)
     {
         if (IR_duration[2] * 50 > SAMSUNG_HEADER_SPACE - 150 && IR_duration[2] * 50 < SAMSUNG_HEADER_SPACE + 150)
         {
-            printf("chuan SAMSUNG!!! \n");
+            printf("\nchuan SAMSUNG!!! \n");
             return IR_SAMSUNG;
         }
     }
@@ -287,8 +323,16 @@ ir_type check_type_IR(void)
     {
         if (IR_duration[3] * 50 > (2 * RC5_PULSE - 150) && IR_duration[3] * 50 < (2 * RC5_PULSE + 150))
         {
-            printf("chuan RC5!!! \n");
+            printf("\nchuan RC5!!! \n");
             return IR_RC5;
+        }
+    }
+    else if (IR_duration[1] * 50 > MITSUBISHI_HEADER_HIGH - 150 && IR_duration[1] * 50 < MITSUBISHI_HEADER_HIGH + 150)
+    {
+        if (IR_duration[2] * 50 > MITSUBISHI_HEADER_LOW - 150 && IR_duration[2] * 50 < MITSUBISHI_HEADER_LOW + 150)
+        {
+            printf("\nchuan MITSUBISHI !!! \n");
+            return IR_MITSUBISHI_AC;
         }
     }
     else
@@ -303,7 +347,7 @@ ir_type check_type_IR(void)
         // printf("gia tri count: %d\n", count);
         if (count == 16)
         {
-            printf("chuan SHARP!!! \n");
+            printf("\nchuan SHARP!!! \n");
             return IR_SHARP;
         }
     }
@@ -427,10 +471,10 @@ void parse_data_JVC(void)
             data_rec |= 1;
         }
     }
-    uint8_t data = data_rec >> 8 & 0xFF;
-    uint8_t custom = data_rec & 0xFF;
-    printf("data: 0x%02X \n", data);        // 8 bit
-    printf("custom is: 0x%02X \n", custom); // 8 bit
+    uint8_t cmd = data_rec >> 8 & 0xFF;
+    uint8_t adr = data_rec & 0xFF;
+    printf("cmd is: 0x%02X \n", cmd); // 8 bit
+    printf("adr is: 0x%02X \n", adr); // 8 bit
 }
 
 void parse_data_SAMSUNG(void)
@@ -502,35 +546,142 @@ void parse_data_SHARP(void)
     }
 }
 
+uint8_t get_byte(uint8_t num_bit, uint16_t bit0, uint16_t bit1)
+{
+    int i = 0;
+    uint8_t data = 0;
+    for (i = (num_bit + 7) * 2 + 4; i >= num_bit; i -= 2)
+    {
+        if (IR_duration[i] * 50 > bit0 - 150 && IR_duration[i] * 50 < bit0 + 150)
+        {
+            data <<= 1;
+        }
+        else if (IR_duration[i] * 50 > bit1 - 150 && IR_duration[i] * 50 < bit1 + 150)
+        {
+            data <<= 1;
+            data |= 1;
+        }
+    }
+    return data;
+}
+uint8_t data_Casper_AC(get_data_Casper_AC get_data)
+{
+    uint8_t data = 0;
+    uint8_t num_bit = 0;
+    switch (get_data)
+    {
+    case CAS_TEMP_SW:
+        num_bit = 20;
+        break;
+    case CAS_SW_HOR:
+        num_bit = 36;
+        break;
+    case CAS_FAN:
+        num_bit = 68;
+        break;
+    case CAS_MODE:
+        num_bit = 100;
+        break;
+    case CAS_ON_OFF:
+        num_bit = 148;
+        break;
+    case CAS_ID_BUTTON:
+        num_bit = 180;
+        break;
+    default:
+        break;
+    }
+    data = get_byte(num_bit, NEC_BIT_LOW_ZERO, NEC_BIT_LOW_ONE);
+    return data;
+}
+
+uint8_t data_Mitsubishi_AC(get_data_Mitsubishi_AC get_data){
+    uint8_t data = 0;
+    uint8_t num_bit = 0;
+    switch (get_data)
+    {
+    case MIT_SWING:
+        num_bit = 84;  // byte 6 trong frame truyen di
+        break;
+    case MIT_FAN:
+        num_bit = 116;
+        break;
+    case MIT_TEMP_MODE:
+        num_bit = 148;
+        break;    
+    default:
+        break;
+    }
+    data = get_byte(num_bit, MITSUBISHI_BIT_LOW_ZERO, MITSUBISHI_BIT_LOW_ONE);
+    return data;
+}
+
+void parse_data_CASPER_AC(void)
+{
+    Casper_AC_para casper_data ={
+        .temp_swing = data_Casper_AC(CAS_TEMP_SW),
+        .swing_hor = data_Casper_AC(CAS_SW_HOR),
+        .fan = data_Casper_AC(CAS_FAN),
+        .mode = data_Casper_AC(CAS_MODE),
+        .on_off = data_Casper_AC(CAS_ON_OFF),
+        .id_button = data_Casper_AC(CAS_ID_BUTTON),
+    };
+
+    printf("temp_swing is: 0x%02X \n",casper_data.temp_swing);
+    printf("swing_hor is: 0x%02X \n", casper_data.swing_hor);
+    printf("fan is: 0x%02X \n", casper_data.fan);
+    printf("mode is: 0x%02X \n", casper_data.mode);
+    printf("on_off is: 0x%02X \n", casper_data.on_off);
+    printf("id_button is: 0x%02X \n", casper_data.id_button);
+
+    //memset(&casper_data, 0 , sizeof(casper_data));
+}
+
+void parse_data_MISUBISHI_AC(void){
+    Mitsubishi_AC_para mitsu_data = {
+        .Swing = data_Mitsubishi_AC(MIT_SWING),
+        .fan = data_Mitsubishi_AC(MIT_FAN),
+        .temp_mode = data_Mitsubishi_AC(MIT_TEMP_MODE),
+    };
+    printf("swing is: 0x%02X \n",mitsu_data.Swing);
+    printf("fan is: 0x%02X \n", mitsu_data.fan);
+    printf("mode temp is: 0x%02X \n", mitsu_data.temp_mode);
+}
+
 void parse_data(void)
 {
 
     ir_type check_type = check_type_IR();
-    if (check_type == IR_NEC) // LG
+    switch (check_type)
     {
+    case IR_NEC:
         parse_data_NEC();
-    }
-    else if (check_type == IR_SIRC)
-    {
+        break;
+    case IR_SIRC:
         parse_data_SIRC();
-    }
-    else if (check_type == IR_RC5)
-    {
+        break;
+    case IR_RC5:
         parse_data_RC5();
-    }
-    else if (check_type == IR_JVC)
-    {
+        break;
+    case IR_JVC:
         parse_data_JVC();
-    }
-    else if (check_type == IR_SAMSUNG)
-    {
+        break;
+    case IR_SAMSUNG:
         parse_data_SAMSUNG();
-    }
-    else if (check_type == IR_SHARP)
-    {
+        break;
+    case IR_SHARP:
         parse_data_SHARP();
+        break;
+        /*----------------------------------------------------------------------------------------*/
+    case IR_CASPER_AC:
+        parse_data_CASPER_AC();
+        break;
+    case IR_MITSUBISHI_AC:
+        parse_data_MISUBISHI_AC();
+        break;
+    default:
+        break;
     }
-    // ESP_LOGI(TAG, "data receive: %lu\n", data_rec);
 }
 
 void task_send_ir(void *para)

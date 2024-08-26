@@ -39,7 +39,7 @@
 #define SAMSUNG_BIT_LOW_ZERO 560
 #define SAMSUNG_BIT_LOW_ONE  1690
 
-#define LG_HEADER_MARK 9000
+#define LG_HEADER_MARK 9000 // ???????????
 #define LG_HEADER_SPACE 4200
 #define LG_BIT_HIGH     500
 #define LG_BIT_LOW_ZERO 550
@@ -49,9 +49,15 @@
 #define SHARP_SPACE_BIT_ONE 1800
 #define SHARP_SPACE_BIT_ZERO 800
 
+#define MITSUBISHI_HEADER_HIGH 3160
+#define MITSUBISHI_HEADER_LOW 1600
+#define MITSUBISHI_BIT_HIGH 360
+#define MITSUBISHI_BIT_LOW_ZERO 420
+#define MITSUBISHI_BIT_LOW_ONE 1170
 
-extern uint16_t IR_duration[100];
-extern int8_t IR_data[100];
+
+extern uint16_t IR_duration[500];
+extern int8_t IR_data[500];
 
 extern uint32_t data_rec;
 extern volatile int duration;
@@ -65,7 +71,9 @@ typedef enum{
     IR_JVC,
     IR_SAMSUNG,
     IR_LG,
-    IR_SHARP
+    IR_SHARP,
+    IR_CASPER_AC,   //NEC
+    IR_MITSUBISHI_AC
 }ir_type;
 
 typedef enum{
@@ -73,6 +81,37 @@ typedef enum{
     SIRC_15_BIT,
     SIRC_20_BIT
 }sirc_type;
+
+typedef enum{
+    CAS_TEMP_SW =0,
+    CAS_SW_HOR,
+    CAS_FAN,
+    CAS_MODE,
+    CAS_ON_OFF,
+    CAS_ID_BUTTON
+}get_data_Casper_AC;
+typedef struct 
+{
+    uint8_t temp_swing;
+    uint8_t swing_hor;
+    uint8_t fan;
+    uint8_t mode;
+    uint8_t on_off;
+    uint8_t id_button;
+}Casper_AC_para;
+
+typedef enum{
+    MIT_SWING =0,
+    MIT_FAN,
+    MIT_TEMP_MODE
+}get_data_Mitsubishi_AC;
+typedef struct 
+{
+    uint8_t Swing;
+    uint8_t fan;
+    uint8_t temp_mode;
+}Mitsubishi_AC_para;
+
 
 void task_send_ir(void *para);
 void task_rec_ir(void *para);
