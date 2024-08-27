@@ -226,6 +226,51 @@ void LG_send_ir_signal(uint8_t addr, uint8_t cmd) // 24 bit
     send_pulse_high(LG_BIT_HIGH);
 }
 
+void SHARP_send_ir_signal(uint8_t addr, uint8_t cmd){
+    int i = 0;
+    uint16_t data_send = 0, data_send2 = 0;
+    data_send = cmd<<5 | addr;
+    data_send2 = (~cmd <<5 & 0x1FE0) | addr;
+
+    for ( i = 0; i < 13; i++)
+    {
+        send_pulse_high(SHARP_MARK);
+        if (data_send & 0x01)
+        {
+            send_pulse_low(SHARP_SPACE_BIT_ONE);
+        }else{
+            send_pulse_low(SHARP_SPACE_BIT_ZERO);
+        }
+        data_send>>=1;
+        
+    }
+    send_pulse_high(SHARP_MARK);
+    send_pulse_low(SHARP_SPACE_BIT_ONE);
+    send_pulse_high(SHARP_MARK);
+    send_pulse_low(SHARP_SPACE_BIT_ZERO);
+    send_pulse_high(SHARP_MARK);
+    send_pulse_low(46000);
+    
+    for ( i = 0; i < 13; i++)
+    {
+        send_pulse_high(SHARP_MARK);
+        if (data_send2 & 0x01)
+        {
+            send_pulse_low(SHARP_SPACE_BIT_ONE);
+        }else{
+            send_pulse_low(SHARP_SPACE_BIT_ZERO);
+        }
+        data_send2>>=1;
+    }
+    send_pulse_high(SHARP_MARK);
+    send_pulse_low(SHARP_SPACE_BIT_ZERO);
+    send_pulse_high(SHARP_MARK);
+    send_pulse_low(SHARP_SPACE_BIT_ONE);
+    send_pulse_high(SHARP_MARK);
+}
+
+
+
 sirc_type check_type_SIRC(void)
 {
     if (IR_data[33] == 1)
@@ -335,9 +380,25 @@ ir_type check_type_IR(void)
             return IR_MITSUBISHI_AC;
         }
     }
+    else if (IR_duration[1] * 50 > PANASONIC_HEADER_HIGH - 100 && IR_duration[1] * 50 < PANASONIC_HEADER_HIGH + 100)
+    {
+        if (IR_duration[2] * 50 > PANASONIC_HEADER_LOW - 100 && IR_duration[2] * 50 < PANASONIC_HEADER_LOW + 100)
+        {
+            printf("\nchuan PANASONIC AC !!! \n");
+            return IR_PANASONIC_AC;
+        }
+    }
+    else if (IR_duration[1] * 50 > MIDEA_HEADER_HIGH - 100 && IR_duration[1] * 50 < MIDEA_HEADER_HIGH + 100)
+    {
+        if (IR_duration[2] * 50 > MIDEA_HEADER_LOW - 100 && IR_duration[2] * 50 < MIDEA_HEADER_LOW + 100)
+        {
+            printf("\nchuan MIDEA AC !!! \n");
+            return IR_MIDEA_AC;
+        }
+    }
     else
     {
-        for (int i = 1; i <= 31; i++)
+        for (int i = 1; i <= 31; i+=2)
         {
             if (IR_duration[i] * 50 > (SHARP_MARK - 150) && IR_duration[i] * 50 < (SHARP_MARK + 150))
             {
@@ -550,7 +611,7 @@ uint8_t get_byte(uint8_t num_bit, uint16_t bit0, uint16_t bit1)
 {
     int i = 0;
     uint8_t data = 0;
-    for (i = (num_bit + 7) * 2 + 4; i >= num_bit; i -= 2)
+    for (i = (num_bit + 7) * 2 + 4; i >= num_bit*2+4; i -= 2)
     {
         if (IR_duration[i] * 50 > bit0 - 150 && IR_duration[i] * 50 < bit0 + 150)
         {
@@ -571,22 +632,22 @@ uint8_t data_Casper_AC(get_data_Casper_AC get_data)
     switch (get_data)
     {
     case CAS_TEMP_SW:
-        num_bit = 20;
+        num_bit = 8;//20;
         break;
     case CAS_SW_HOR:
-        num_bit = 36;
+        num_bit = 16;//36;
         break;
     case CAS_FAN:
-        num_bit = 68;
+        num_bit = 32;//68;
         break;
     case CAS_MODE:
-        num_bit = 100;
+        num_bit = 42;//100;
         break;
     case CAS_ON_OFF:
-        num_bit = 148;
+        num_bit = 72;//148;
         break;
     case CAS_ID_BUTTON:
-        num_bit = 180;
+        num_bit = 88;//180;
         break;
     default:
         break;
@@ -601,13 +662,13 @@ uint8_t data_Mitsubishi_AC(get_data_Mitsubishi_AC get_data){
     switch (get_data)
     {
     case MIT_SWING:
-        num_bit = 84;  // byte 6 trong frame truyen di
+        num_bit = 40;//84;  // byte 6 trong frame truyen di
         break;
     case MIT_FAN:
-        num_bit = 116;
+        num_bit = 56;//116;
         break;
     case MIT_TEMP_MODE:
-        num_bit = 148;
+        num_bit = 72;//148;
         break;    
     default:
         break;
@@ -648,6 +709,31 @@ void parse_data_MISUBISHI_AC(void){
     printf("mode temp is: 0x%02X \n", mitsu_data.temp_mode);
 }
 
+void parse_data_PANASONIC_AC(void){
+    int i = 0;
+    uint8_t data_r = 0;
+    uint8_t num_bit = 0;
+    for (i = 0; i < 12; i++)
+    {
+        num_bit = i*8;
+        data_r = get_byte(num_bit,PANASONIC_BIT_LOW_ZERO, PANASONIC_BIT_LOW_ONE);
+        printf("data[%d] is 0x%02X \n",i,data_r);
+    }
+}
+
+void parse_data_MIDEA_AC(void){
+    int i = 0;
+    uint8_t data_r = 0;
+    uint8_t num_bit = 0;
+    for (i = 0; i < 6; i++)
+    {
+        num_bit = i*8;
+        data_r = get_byte(num_bit,MIDEA_BIT_LOW_ZERO, MIDEA_BIT_LOW_ONE);
+        printf("data[%d] is 0x%02X \n",i,data_r);
+    }
+}
+
+
 void parse_data(void)
 {
 
@@ -678,6 +764,12 @@ void parse_data(void)
         break;
     case IR_MITSUBISHI_AC:
         parse_data_MISUBISHI_AC();
+        break;
+    case IR_PANASONIC_AC:
+        parse_data_PANASONIC_AC();
+        break;
+    case IR_MIDEA_AC:
+        parse_data_MIDEA_AC();
         break;
     default:
         break;
@@ -718,6 +810,11 @@ void task_send_ir(void *para)
         // ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
         // ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
         // vTaskDelay(5000/portTICK_PERIOD_MS);
+
+        SHARP_send_ir_signal(0x01,0x16);
+        ledc_set_duty(LEDC_MODE, LEDC_CHANNEL_0, 0); // Tắt PWM
+        ledc_update_duty(LEDC_MODE, LEDC_CHANNEL_0);
+        vTaskDelay(5000/portTICK_PERIOD_MS);
     }
 }
 
@@ -745,6 +842,6 @@ void task_rec_ir(void *para)
 void init_task_IR(void)
 {
     memset(IR_data, -1, sizeof(IR_data));
-    // xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
+    //xTaskCreate(task_send_ir, "send_task", 4096, NULL, 10, NULL);
     xTaskCreate(task_rec_ir, "rec_task", 4096, NULL, 10, NULL);
 }
